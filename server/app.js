@@ -1,8 +1,7 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import path from "path";
-import { fileURLToPath } from "url";
+
 import { createClient } from "@supabase/supabase-js";
 import { addDays, format, subDays } from "date-fns";
 
@@ -10,9 +9,6 @@ dotenv.config();
 
 const app = express();
 const port = Number(process.env.PORT || 4000);
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const distPath = path.join(__dirname, "..", "dist");
 const supabaseUrl =
   process.env.SUPABASE_URL || "https://hcbtyxaelyhybpdnkzrb.supabase.co";
 const supabaseKey =
@@ -535,12 +531,13 @@ app.get("/api/feature-monitor", async (_req, res) => {
   }
 });
 
-app.use(express.static(distPath));
+export default app;
 
-app.get(/^\/(?!api).*/, (_req, res) => {
-  res.sendFile(path.join(distPath, "index.html"));
-});
-
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
-});
+if (
+  process.env.NODE_ENV !== "production" ||
+  process.env.RUN_EXPRESS_SERVER === "true"
+) {
+  app.listen(port, () => {
+    console.log(`Server running on port ${port}`);
+  });
+}

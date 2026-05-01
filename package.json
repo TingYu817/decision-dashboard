@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently \"npm run server:dev\" \"npm run client:dev\"",
-    "server:dev": "nodemon server/index.js",
-    "server:start": "node server/index.js",
+    "server:dev": "set RUN_EXPRESS_SERVER=true&& nodemon server/app.js",
+    "server:start": "set RUN_EXPRESS_SERVER=true&& node server/app.js",
     "client:dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0"

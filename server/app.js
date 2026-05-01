@@ -119,6 +119,17 @@ function buildTrendFromData(
       upperBound: value.upperBound ? round(value.upperBound) : null,
     }));
 
+  // Bridge: connect the last history point to the first forecast point
+  // so the chart lines don't have a visual gap
+  if (history.length && forecast.length) {
+    const lastActual = history[history.length - 1].actualSales;
+    const firstPredicted = forecast[0].predictedSales;
+    // Last history point also shows the predicted value
+    history[history.length - 1].predictedSales = lastActual;
+    // First forecast point also shows the actual value
+    forecast[0].actualSales = firstPredicted;
+  }
+
   return [...history, ...forecast];
 }
 

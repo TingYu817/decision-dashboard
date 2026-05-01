@@ -209,6 +209,10 @@ function DashboardView() {
   const { loading, error, data } = useAsyncData(() => api("/dashboard"), []);
   if (loading) return <LoadingPanel />;
   if (error) return <ErrorPanel message={error} />;
+  if (!data?.metrics)
+    return (
+      <ErrorPanel message="/api/dashboard 回傳格式不正確，請確認 Vercel API 路由是否正常" />
+    );
 
   return (
     <div className="view-grid">

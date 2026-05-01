@@ -119,10 +119,14 @@ function buildTrendFromData(
       upperBound: value.upperBound ? round(value.upperBound) : null,
     }));
 
-  // Bridge: extend the actual-sales line to the first forecast date
-  // so the two lines fork cleanly without a visual gap
+  // Bridge: connect the last history point to the first forecast point
+  // so the chart lines don't have a visual gap
   if (history.length && forecast.length) {
-    forecast[0].actualSales = history[history.length - 1].actualSales;
+    const lastActual = history[history.length - 1].actualSales;
+    // 讓預測線與置信區間的「起點」從歷史最後一點開始（呈現扇形展開）
+    history[history.length - 1].predictedSales = lastActual;
+    history[history.length - 1].lowerBound = lastActual;
+    history[history.length - 1].upperBound = lastActual;
   }
 
   return [...history, ...forecast];

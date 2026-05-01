@@ -244,45 +244,59 @@ function DashboardView() {
       </div>
 
       <Card title="14 天趨勢快照" icon={LineChartIcon}>
-        <ForecastChart data={data.trendSnapshot} height={300} />
+        {data.forecastError ? (
+          <div className="empty-state error">
+            預測數據載入失敗：{data.forecastError}，請稍後再試
+          </div>
+        ) : (
+          <ForecastChart data={data.trendSnapshot} height={300} />
+        )}
       </Card>
 
       <Card title="自動化進貨預警" icon={ShoppingCart}>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>產品</th>
-                <th>狀態</th>
-                <th>可用庫存</th>
-                <th>7 日需求</th>
-                <th>建議進貨</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.stockWarnings.map((item) => (
-                <tr key={item.productId}>
-                  <td>
-                    {item.productName}
-                    <span>{item.category}</span>
-                  </td>
-                  <td>
-                    <span className={`pill ${statusClass[item.status]}`}>
-                      {statusLabel[item.status]}
-                    </span>
-                  </td>
-                  <td>{formatNumber(item.available)}</td>
-                  <td>{formatNumber(item.sevenDayDemand)}</td>
-                  <td>
-                    <strong>{formatNumber(item.recommendedOrderQty)}</strong>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {!data.stockWarnings.length && (
-          <EmptyState message="目前沒有庫存不足或過剩警示" />
+        {data.forecastError ? (
+          <div className="empty-state error">
+            預測數據載入失敗：無法計算進貨預警，請稍後再試
+          </div>
+        ) : (
+          <>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>產品</th>
+                    <th>狀態</th>
+                    <th>可用庫存</th>
+                    <th>7 日需求</th>
+                    <th>建議進貨</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.stockWarnings.map((item) => (
+                    <tr key={item.productId}>
+                      <td>
+                        {item.productName}
+                        <span>{item.category}</span>
+                      </td>
+                      <td>
+                        <span className={`pill ${statusClass[item.status]}`}>
+                          {statusLabel[item.status]}
+                        </span>
+                      </td>
+                      <td>{formatNumber(item.available)}</td>
+                      <td>{formatNumber(item.sevenDayDemand)}</td>
+                      <td>
+                        <strong>{formatNumber(item.recommendedOrderQty)}</strong>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {!data.stockWarnings.length && (
+              <EmptyState message="目前指標正常，無須進貨" />
+            )}
+          </>
         )}
       </Card>
 
@@ -438,11 +452,15 @@ function StockControl() {
   );
 
   async function runSimulation() {
-    const result = await api("/stock-control/simulate", {
-      method: "POST",
-      body: JSON.stringify(simForm),
-    });
-    setSimulation(result);
+    try {
+      const result = await api("/stock-control/simulate", {
+        method: "POST",
+        body: JSON.stringify(simForm),
+      });
+      setSimulation(result);
+    } catch (error) {
+      setSimulation({ error: error.message });
+    }
   }
 
   async function createPurchaseOrder() {
@@ -502,9 +520,21 @@ function StockControl() {
                   <td>{formatNumber(item.available)}</td>
                   <td>{formatNumber(item.safetyStock)}</td>
                   <td>
-                    <strong>{formatNumber(item.recommendedOrderQty)}</strong>
+                    {item.confidence < 0.5 ? (
+                      <span className="pill warning">需人工評估</span>
+                    ) : (
+                      <strong>{formatNumber(item.recommendedOrderQty)}</strong>
+                    )}
                   </td>
-                  <td>{Math.round(item.confidence * 100)}%</td>
+                  <td>
+                    {item.confidence < 0.5 ? (
+                      <span className="pill danger">
+                        {Math.round(item.confidence * 100)}%
+                      </span>
+                    ) : (
+                      <>{Math.round(item.confidence * 100)}%</>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -570,7 +600,12 @@ function StockControl() {
               重新運算情境
             </button>
           </div>
-          {simulation && (
+          {simulation?.error && (
+            <div className="empty-state error">
+              {simulation.error}
+            </div>
+          )}
+          {simulation && !simulation.error && (
             <>
               <div className="simulation-summary">
                 <span>
@@ -631,21 +666,29 @@ function FeatureMonitor() {
     <div className="view-grid">
       <div className="two-column">
         <Card title="外部因子監控站：氣候指數" icon={CloudSun}>
-          <div className="factor-grid">
-            {data.externalFactors.weather.map((item, index) => (
-              <div
-                className="factor-card"
-                key={`${item.region || item.city}-${index}`}
-              >
-                <strong>{item.region || item.city || "未知區域"}</strong>
-                <p>{item.temperature ?? item.temp}°C</p>
-                <span>
-                  降雨機率{" "}
-                  {item.rainfall_probability ?? item.rainProbability ?? 0}%
-                </span>
-              </div>
-            ))}
-          </div>
+          {data.externalFactors.errors?.weather ? (
+            <div className="empty-state error">
+              {data.externalFactors.errors.weather}
+            </div>
+          ) : data.externalFactors.weather.length ? (
+            <div className="factor-grid">
+              {data.externalFactors.weather.map((item, index) => (
+                <div
+                  className="factor-card"
+                  key={`${item.region || item.city}-${index}`}
+                >
+                  <strong>{item.region || item.city || "未知區域"}</strong>
+                  <p>{item.temperature ?? item.temp}°C</p>
+                  <span>
+                    降雨機率{" "}
+                    {item.rainfall_probability ?? item.rainProbability ?? 0}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState message="目前無氣候資料" />
+          )}
         </Card>
 
         <Card title="模型運行健康度" icon={Gauge}>
@@ -672,42 +715,58 @@ function FeatureMonitor() {
 
       <div className="two-column">
         <Card title="節慶行事曆" icon={Sparkles}>
-          <div className="timeline compact">
-            {data.externalFactors.holidays.map((holiday) => (
-              <div className="timeline-item" key={holiday.date}>
-                <span>{holiday.date}</span>
-                <strong>{holiday.name}</strong>
-                <p>預估影響 {holiday.expectedImpact}</p>
-              </div>
-            ))}
-          </div>
+          {data.externalFactors.errors?.holidays ? (
+            <div className="empty-state error">
+              {data.externalFactors.errors.holidays}
+            </div>
+          ) : data.externalFactors.holidays.length ? (
+            <div className="timeline compact">
+              {data.externalFactors.holidays.map((holiday) => (
+                <div className="timeline-item" key={holiday.date}>
+                  <span>{holiday.date}</span>
+                  <strong>{holiday.name}</strong>
+                  <p>預估影響 {holiday.expectedImpact}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState message="目前無節慶資料" />
+          )}
         </Card>
 
         <Card title="促銷活動排程" icon={ShoppingCart}>
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>活動</th>
-                  <th>狀態</th>
-                  <th>期間</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.externalFactors.promotions.map((promo, index) => (
-                  <tr key={`${promo.name}-${index}`}>
-                    <td>{promo.name}</td>
-                    <td>
-                      <span className="pill blue">{promo.status}</span>
-                    </td>
-                    <td>
-                      {promo.start_date} ~ {promo.end_date}
-                    </td>
+          {data.externalFactors.errors?.promotions ? (
+            <div className="empty-state error">
+              {data.externalFactors.errors.promotions}
+            </div>
+          ) : data.externalFactors.promotions.length ? (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>活動</th>
+                    <th>狀態</th>
+                    <th>期間</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {data.externalFactors.promotions.map((promo, index) => (
+                    <tr key={`${promo.name}-${index}`}>
+                      <td>{promo.name}</td>
+                      <td>
+                        <span className="pill blue">{promo.status}</span>
+                      </td>
+                      <td>
+                        {promo.start_date} ~ {promo.end_date}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <EmptyState message="目前無促銷活動" />
+          )}
         </Card>
       </div>
     </div>

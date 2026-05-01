@@ -277,13 +277,44 @@ function normalizeModelHealth(latestRun) {
 
   const rawStatus = String(latestRun.status || "").toLowerCase();
   const healthy = ["success", "completed", "healthy"].includes(rawStatus);
+  const warning = ["warning", "delayed", "partial"].includes(rawStatus);
+  const weightUpdated = Boolean(latestRun.weight_updated);
+  const lastRunTime = latestRun.created_at
+    ? new Date(latestRun.created_at).getTime()
+    : 0;
+  const hoursSinceLastRun = lastRunTime
+    ? (Date.now() - lastRunTime) / (1000 * 60 * 60)
+    : Infinity;
+  const updateOverdue = hoursSinceLastRun > 24;
+
+  let status, label, note;
+  if (healthy && !updateOverdue) {
+    status = "green";
+    label = "運行正常";
+    note = "資料來自 Supabase model_runs 表";
+  } else if (
+    warning ||
+    (healthy && updateOverdue) ||
+    (!healthy && weightUpdated)
+  ) {
+    status = "yellow";
+    label = "警告：權重更新延遲";
+    note = updateOverdue
+      ? `最近一次執行距今已超過 ${Math.round(hoursSinceLastRun)} 小時，建議確認排程`
+      : "模型運行狀態異常，但權重更新仍完成，建議持續觀察";
+  } else {
+    status = "red";
+    label = "異常：需技術人員處理";
+    note = `模型狀態：${rawStatus || "未知"}，建議通報技術人員檢查`;
+  }
+
   return {
-    status: healthy ? "green" : "red",
-    label: healthy ? "運行正常" : "需檢查",
+    status,
+    label,
     lastRunAt: latestRun.created_at,
     optimizer: latestRun.optimizer,
-    weightUpdated: Boolean(latestRun.weight_updated),
-    note: "資料來自 Supabase model_runs 表",
+    weightUpdated,
+    note,
   };
 }
 
@@ -334,18 +365,36 @@ app.get("/api/products", async (_req, res) => {
 
 app.get("/api/dashboard", async (_req, res) => {
   try {
-    const [products, inventory, sales, forecasts] = await Promise.all([
+    const results = await Promise.allSettled([
       getProducts(),
       getInventory(),
       getSales(45),
       getForecasts(30),
     ]);
-    const stockWarnings = calculateStockRecommendations(
-      products,
-      inventory,
-      forecasts,
-    ).filter((item) => item.status !== "healthy");
-    const trendSnapshot = buildTrendFromData(sales, forecasts, "all", 14);
+    const products = results[0].status === "fulfilled" ? results[0].value : [];
+    const inventory = results[1].status === "fulfilled" ? results[1].value : [];
+    const sales = results[2].status === "fulfilled" ? results[2].value : [];
+    const forecasts = results[3].status === "fulfilled" ? results[3].value : [];
+    const forecastError =
+      results[3].status === "rejected"
+        ? results[3].reason?.message || "預測數據載入失敗"
+        : null;
+    const dbError =
+      results[0].status === "rejected" ||
+      results[1].status === "rejected" ||
+      results[2].status === "rejected"
+        ? "資料庫部分連線失敗"
+        : null;
+
+    const stockWarnings =
+      products.length && forecasts.length
+        ? calculateStockRecommendations(products, inventory, forecasts).filter(
+            (item) => item.status !== "healthy",
+          )
+        : [];
+    const trendSnapshot = forecastError
+      ? []
+      : buildTrendFromData(sales, forecasts, "all", 14);
     const forecastRows = normalizeForecastRows(forecasts);
     const todayForecast = forecastRows
       .filter((row) => row.date === fmt(today))
@@ -373,6 +422,8 @@ app.get("/api/dashboard", async (_req, res) => {
       stockWarnings,
       trendSnapshot,
       alerts,
+      forecastError,
+      dbError,
       generatedAt: new Date().toISOString(),
     });
   } catch (error) {
@@ -440,6 +491,12 @@ app.post("/api/stock-control/simulate", async (req, res) => {
       promotionActive = false,
       priceChangePct = 0,
     } = req.body || {};
+    const pricePct = Number(priceChangePct);
+    if (!Number.isFinite(pricePct) || pricePct < -100 || pricePct > 500) {
+      return res.status(400).json({
+        error: "參數設定錯誤：價格調整百分比須介於 -100% 至 500% 之間",
+      });
+    }
     const forecasts = normalizeForecastRows(
       await getForecasts(14, String(productId)),
     );
@@ -503,7 +560,7 @@ app.post("/api/stock-control/purchase-orders", async (req, res) => {
 
 app.get("/api/feature-monitor", async (_req, res) => {
   try {
-    const [weather, promotions, holidays, modelRuns] = await Promise.all([
+    const results = await Promise.allSettled([
       selectRows("weather_features", "*", (query) =>
         query.order("observed_at", { ascending: false }).limit(10),
       ),
@@ -517,12 +574,34 @@ app.get("/api/feature-monitor", async (_req, res) => {
         query.order("created_at", { ascending: false }).limit(5),
       ),
     ]);
+    const weather =
+      results[0].status === "fulfilled" ? results[0].value : [];
+    const promotions =
+      results[1].status === "fulfilled" ? results[1].value : [];
+    const holidays =
+      results[2].status === "fulfilled" ? results[2].value : [];
+    const modelRuns =
+      results[3].status === "fulfilled" ? results[3].value : [];
 
     res.json({
       externalFactors: {
         weather,
         holidays: normalizeHolidays(holidays),
         promotions,
+        errors: {
+          weather:
+            results[0].status === "rejected"
+              ? "同步失敗：" + (results[0].reason?.message || "連線異常")
+              : null,
+          promotions:
+            results[1].status === "rejected"
+              ? "同步失敗：" + (results[1].reason?.message || "連線異常")
+              : null,
+          holidays:
+            results[2].status === "rejected"
+              ? "同步失敗：" + (results[2].reason?.message || "連線異常")
+              : null,
+        },
       },
       modelHealth: normalizeModelHealth(modelRuns[0]),
     });

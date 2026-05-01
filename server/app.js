@@ -119,15 +119,10 @@ function buildTrendFromData(
       upperBound: value.upperBound ? round(value.upperBound) : null,
     }));
 
-  // Bridge: connect the last history point to the first forecast point
-  // so the chart lines don't have a visual gap
+  // Bridge: extend the actual-sales line to the first forecast date
+  // so the two lines fork cleanly without a visual gap
   if (history.length && forecast.length) {
-    const lastActual = history[history.length - 1].actualSales;
-    const firstPredicted = forecast[0].predictedSales;
-    // Last history point also shows the predicted value
-    history[history.length - 1].predictedSales = lastActual;
-    // First forecast point also shows the actual value
-    forecast[0].actualSales = firstPredicted;
+    forecast[0].actualSales = history[history.length - 1].actualSales;
   }
 
   return [...history, ...forecast];

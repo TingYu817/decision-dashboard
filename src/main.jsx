@@ -34,10 +34,38 @@ import "./styles.css";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
 
 const interfaces = [
-  { id: "dashboard", label: "決策總覽", icon: Gauge },
-  { id: "forecast", label: "銷量預測", icon: LineChartIcon },
-  { id: "stock", label: "進貨庫存", icon: Boxes },
-  { id: "monitor", label: "資料監控", icon: CloudSun },
+  {
+    id: "dashboard",
+    label: "決策管理總覽儀表板",
+    shortLabel: "決策總覽",
+    icon: Gauge,
+    description:
+      "讓管理者於登入首頁後，能在 10 秒內掌握全局，檢視核心指標、預測進貨預警及銷量趨勢，並即時發現潛在異常。",
+  },
+  {
+    id: "forecast",
+    label: "銷量預測分析中心",
+    shortLabel: "銷量預測",
+    icon: LineChartIcon,
+    description:
+      "檢視長短期銷量趨勢、特徵權重及非線性銷售波動，以視覺化圖表深入理解 AI 預測結果與背後推導原因。",
+  },
+  {
+    id: "stock",
+    label: "科學化進貨與庫存決策",
+    shortLabel: "進貨決策",
+    icon: Boxes,
+    description:
+      "將預測數據轉化為執行動作，包含檢視智慧訂單、執行模擬情境分析以輔助定價，及查看預測穩定性以制定備貨策略。",
+  },
+  {
+    id: "monitor",
+    label: "資料特徵監控介面",
+    shortLabel: "資料監控",
+    icon: CloudSun,
+    description:
+      "檢視並確認系統輸入之外部數據是否正常同步，並監控後台模型運作與權重更新狀態。",
+  },
 ];
 
 const statusLabel = {
@@ -216,34 +244,36 @@ function DashboardView() {
 
   return (
     <div className="view-grid">
-      <div className="metrics-grid">
-        <MetricCard
-          title="今日預計銷量"
-          value={formatNumber(data.metrics.todayForecast)}
-          suffix=" 件"
-          description="由 forecasts 表或即時分析值彙整"
-          icon={TrendingUp}
-          tone="blue"
-        />
-        <MetricCard
-          title="本月銷量達成率"
-          value={data.metrics.monthlyAchievementRate}
-          suffix="%"
-          description="以本月累積銷量 / 預估月目標計算"
-          icon={BarChart3}
-          tone="green"
-        />
-        <MetricCard
-          title="異動警示"
-          value={data.metrics.activeAlerts}
-          suffix=" 則"
-          description="庫存、模型與銷售波動警示"
-          icon={AlertTriangle}
-          tone="orange"
-        />
-      </div>
+      <Card title="核心指標看板" icon={BarChart3}>
+        <div className="metrics-grid">
+          <MetricCard
+            title="今日預計銷量"
+            value={formatNumber(data.metrics.todayForecast)}
+            suffix=" 件"
+            description="由 LSTM 預測模型彙整"
+            icon={TrendingUp}
+            tone="blue"
+          />
+          <MetricCard
+            title="本月銷量達成率"
+            value={data.metrics.monthlyAchievementRate}
+            suffix="%"
+            description="以本月累積銷量 / 預估月目標計算"
+            icon={BarChart3}
+            tone="green"
+          />
+          <MetricCard
+            title="系統偵測異動警示"
+            value={data.metrics.activeAlerts}
+            suffix=" 則"
+            description="庫存、模型與銷售波動警示"
+            icon={AlertTriangle}
+            tone="orange"
+          />
+        </div>
+      </Card>
 
-      <Card title="14 天趨勢快照" icon={LineChartIcon}>
+      <Card title="14 天銷量預測曲線（趨勢快照）" icon={LineChartIcon}>
         {data.forecastError ? (
           <div className="empty-state error">
             預測數據載入失敗：{data.forecastError}，請稍後再試
@@ -664,111 +694,106 @@ function FeatureMonitor() {
 
   return (
     <div className="view-grid">
-      <div className="two-column">
-        <Card title="外部因子監控站：氣候指數" icon={CloudSun}>
-          {data.externalFactors.errors?.weather ? (
-            <div className="empty-state error">
-              {data.externalFactors.errors.weather}
-            </div>
-          ) : data.externalFactors.weather.length ? (
-            <div className="factor-grid">
-              {data.externalFactors.weather.map((item, index) => (
-                <div
-                  className="factor-card"
-                  key={`${item.region || item.city}-${index}`}
-                >
-                  <strong>{item.region || item.city || "未知區域"}</strong>
-                  <p>{item.temperature ?? item.temp}°C</p>
-                  <span>
-                    降雨機率{" "}
-                    {item.rainfall_probability ?? item.rainProbability ?? 0}%
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <EmptyState message="目前無氣候資料" />
-          )}
-        </Card>
-
-        <Card title="模型運行健康度" icon={Gauge}>
-          <div className={`health-light ${data.modelHealth.status}`}>
-            <span />
-            <div>
-              <strong>{data.modelHealth.label}</strong>
-              <p>
-                最後執行：
-                {data.modelHealth.lastRunAt
-                  ? new Date(data.modelHealth.lastRunAt).toLocaleString("zh-TW")
-                  : "Supabase 尚無紀錄"}
-              </p>
-              <p>
-                優化器：{data.modelHealth.optimizer || "Supabase 尚無紀錄"}
-                ｜權重更新：
-                {data.modelHealth.weightUpdated ? "已完成" : "未完成"}
-              </p>
-              <small>{data.modelHealth.note}</small>
-            </div>
+      <Card title="外部因子監控站" icon={CloudSun}>
+        <h3 className="sub-heading">氣候指數</h3>
+        {data.externalFactors.errors?.weather ? (
+          <div className="empty-state error">
+            {data.externalFactors.errors.weather}
           </div>
-        </Card>
-      </div>
+        ) : data.externalFactors.weather.length ? (
+          <div className="factor-grid">
+            {data.externalFactors.weather.map((item, index) => (
+              <div
+                className="factor-card"
+                key={`${item.region || item.city}-${index}`}
+              >
+                <strong>{item.region || item.city || "未知區域"}</strong>
+                <p>{item.temperature ?? item.temp}°C</p>
+                <span>
+                  降雨機率{" "}
+                  {item.rainfall_probability ?? item.rainProbability ?? 0}%
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyState message="目前無氣候資料" />
+        )}
 
-      <div className="two-column">
-        <Card title="節慶行事曆" icon={Sparkles}>
-          {data.externalFactors.errors?.holidays ? (
-            <div className="empty-state error">
-              {data.externalFactors.errors.holidays}
-            </div>
-          ) : data.externalFactors.holidays.length ? (
-            <div className="timeline compact">
-              {data.externalFactors.holidays.map((holiday) => (
-                <div className="timeline-item" key={holiday.date}>
-                  <span>{holiday.date}</span>
-                  <strong>{holiday.name}</strong>
-                  <p>預估影響 {holiday.expectedImpact}</p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <EmptyState message="目前無節慶資料" />
-          )}
-        </Card>
+        <h3 className="sub-heading">節慶行事曆</h3>
+        {data.externalFactors.errors?.holidays ? (
+          <div className="empty-state error">
+            {data.externalFactors.errors.holidays}
+          </div>
+        ) : data.externalFactors.holidays.length ? (
+          <div className="timeline compact">
+            {data.externalFactors.holidays.map((holiday) => (
+              <div className="timeline-item" key={holiday.date}>
+                <span>{holiday.date}</span>
+                <strong>{holiday.name}</strong>
+                <p>預估影響 {holiday.expectedImpact}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyState message="目前無節慶資料" />
+        )}
 
-        <Card title="促銷活動排程" icon={ShoppingCart}>
-          {data.externalFactors.errors?.promotions ? (
-            <div className="empty-state error">
-              {data.externalFactors.errors.promotions}
-            </div>
-          ) : data.externalFactors.promotions.length ? (
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>活動</th>
-                    <th>狀態</th>
-                    <th>期間</th>
+        <h3 className="sub-heading">促銷活動排程</h3>
+        {data.externalFactors.errors?.promotions ? (
+          <div className="empty-state error">
+            {data.externalFactors.errors.promotions}
+          </div>
+        ) : data.externalFactors.promotions.length ? (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>活動</th>
+                  <th>狀態</th>
+                  <th>期間</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.externalFactors.promotions.map((promo, index) => (
+                  <tr key={`${promo.name}-${index}`}>
+                    <td>{promo.name}</td>
+                    <td>
+                      <span className="pill blue">{promo.status}</span>
+                    </td>
+                    <td>
+                      {promo.start_date} ~ {promo.end_date}
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {data.externalFactors.promotions.map((promo, index) => (
-                    <tr key={`${promo.name}-${index}`}>
-                      <td>{promo.name}</td>
-                      <td>
-                        <span className="pill blue">{promo.status}</span>
-                      </td>
-                      <td>
-                        {promo.start_date} ~ {promo.end_date}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <EmptyState message="目前無促銷活動" />
-          )}
-        </Card>
-      </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <EmptyState message="目前無促銷活動" />
+        )}
+      </Card>
+
+      <Card title="模型運行健康度" icon={Gauge}>
+        <div className={`health-light ${data.modelHealth.status}`}>
+          <span />
+          <div>
+            <strong>{data.modelHealth.label}</strong>
+            <p>
+              最後執行：
+              {data.modelHealth.lastRunAt
+                ? new Date(data.modelHealth.lastRunAt).toLocaleString("zh-TW")
+                : "Supabase 尚無紀錄"}
+            </p>
+            <p>
+              優化器：{data.modelHealth.optimizer || "Supabase 尚無紀錄"}
+              ｜權重更新：
+              {data.modelHealth.weightUpdated ? "已完成" : "未完成"}
+            </p>
+            <small>{data.modelHealth.note}</small>
+          </div>
+        </div>
+      </Card>
     </div>
   );
 }
@@ -791,13 +816,13 @@ function App() {
           </div>
         </div>
         <nav>
-          {interfaces.map(({ id, label, icon: Icon }) => (
+          {interfaces.map(({ id, shortLabel, icon: Icon }) => (
             <button
               key={id}
               className={active === id ? "active" : ""}
               onClick={() => setActive(id)}
             >
-              <Icon size={18} /> {label}
+              <Icon size={18} /> {shortLabel}
             </button>
           ))}
         </nav>
@@ -812,7 +837,7 @@ function App() {
               {interfaces.find((item) => item.id === active)?.label}
             </h1>
             <span>
-              讓管理者直接透過介面取得銷售預測、庫存建議、異常警示與資料健康度。
+              {interfaces.find((item) => item.id === active)?.description}
             </span>
           </div>
         </header>
